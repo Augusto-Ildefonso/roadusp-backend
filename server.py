@@ -25,6 +25,46 @@ def lista_cursos():
             return jsonify({"error": "não foi encontrado nenhum curso"}), 500
     except Exception as e:
         return jsonify({"error": e}), 500
+    
+def criar_node_link(lista_disciplinas, tipo):
+    nodes = []
+    links = []
+    lista_codigos_disciplinas = []
+    group : int
+    
+    match tipo:
+        case "obrigatoria":
+            group = 1
+        case "eletiva":
+            group = 2
+        case "livre":
+            group = 3
+
+    for disciplina in lista_disciplinas:
+        lista_codigos_disciplinas.append(disciplina["codigo"])
+        elemento_node = {
+            "id": disciplina["codigo"],
+            "group": group,
+            "nome": disciplina["nome"],
+            "credito_aula": disciplina["credito_aula"],
+            "credito_trabalho": disciplina["credito_trabalho"],
+            "carga_horaria": disciplina["carga_horaria"],
+            "carga_horaria_estagio": disciplina["carga_horaria_estagio"],
+            "carga_horaria_pratica": disciplina["carga_horaria_pratica"],
+            "atividades_teoricos": disciplina["atividades_teo"]
+        }
+        nodes.append(elemento_node)
+
+        for requisito in disciplina["requisitos"]:
+            if requisito in lista_codigos_disciplinas:
+                elemento_link = {}
+                elemento_link["source"] = requisito
+                elemento_link["target"] = disciplina["codigo"]
+                elemento_link["value"] = 3
+
+            links.append(elemento_link)
+
+    return (nodes, links)
 
 @app.route("/disciplinas")
 def get_disciplinas():
@@ -47,32 +87,17 @@ def get_disciplinas():
 
         for curso in lista_cursos:
             if curso["nome"] == curso_http:
-                lista_disciplinas = curso["disciplinas_obrigatorias"] + curso["disciplinas_optativas_eletivas"] + curso["disciplinas_optativas_livres"]
-                lista_codigos_disciplinas = []
+                disciplinas_obrigatorias = criar_node_link(curso["disciplinas_obrigatorias"], "obrigatoria")
+                disciplinas_eletivas = criar_node_link(curso["disciplinas_optativas_eletivas"], "eletiva")
+                disciplinas_livres = criar_node_link(curso["disciplinas_optativas_livres"], "livre")
 
-                for disciplina in lista_disciplinas:
-                    lista_codigos_disciplinas.append(disciplina["codigo"])
-                    elemento_node = {
-                        "id": disciplina["codigo"],
-                        "group": 1 if not disciplina["requisitos"] else 2,
-                        "nome": disciplina["nome"],
-                        "credito_aula": disciplina["credito_aula"],
-                        "credito_trabalho": disciplina["credito_trabalho"],
-                        "carga_horaria": disciplina["carga_horaria"],
-                        "carga_horaria_estagio": disciplina["carga_horaria_estagio"],
-                        "carga_horaria_pratica": disciplina["carga_horaria_pratica"],
-                        "atividades_teoricos": disciplina["atividades_teo"]
-                    }
-                    nodes.append(elemento_node)
+                nodes.extend(disciplinas_obrigatorias[0])
+                nodes.extend(disciplinas_eletivas[0])
+                nodes.extend(disciplinas_livres[0])
 
-                    for requisito in disciplina["requisitos"]:
-                        if requisito in lista_codigos_disciplinas:
-                            elemento_link = {}
-                            elemento_link["source"] = requisito
-                            elemento_link["target"] = disciplina["codigo"]
-                            elemento_link["value"] = 3
-
-                        links.append(elemento_link)
+                links.extend(disciplinas_obrigatorias[1])
+                links.extend(disciplinas_eletivas[1])
+                links.extend(disciplinas_livres[1])
 
                 break
 
