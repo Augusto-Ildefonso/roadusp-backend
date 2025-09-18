@@ -5,6 +5,10 @@ import json
 app = Flask(__name__)
 CORS(app)
 
+@app.route("/ping")
+def ping():
+    return jsonify({"status": "ok", "message": "Server is awake"}), 200
+
 @app.route("/listacursos")
 def lista_cursos():
     try:
