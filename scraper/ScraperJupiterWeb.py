@@ -53,15 +53,21 @@ class ScraperJupiterWeb():
     '''
     def _aguardar_sem_overlay(self):
         try:
-            # Aguarda que overlays blockUI desapareçam
-            self.wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "blockUI")))
-        except TimeoutException:
-            # Se não houver overlay ou timeout, continua
-            pass
-        
-        try:
-            # Aguarda que overlays blockOverlay desapareçam
-            self.wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "blockOverlay")))
+            # Define um wait de até 10s para encontrar o botão 'Fechar' e clicar nele.
+            # Este é um tempo de espera razoável para o botão aparecer.
+            wait_for_button = WebDriverWait(self.jupiter_selenium, 2)
+
+            fechar_button_locator = (By.XPATH, "//span[@class='ui-button-text' and text()='Fechar']")
+            
+            # Espera até que o botão esteja presente, visível e habilitado para clique
+            close_button = wait_for_button.until(EC.element_to_be_clickable(fechar_button_locator))
+            
+            # Clica no botão para fechar o overlay
+            close_button.click()
+            
+            # Espera o botão fechar
+            long_wait = WebDriverWait(self.jupiter_selenium, 2)
+            long_wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "ui-widget-overlay")))
         except TimeoutException:
             # Se não houver overlay ou timeout, continua
             pass
@@ -412,8 +418,14 @@ class ScraperJupiterWeb():
                             if texto_celula and len(texto_celula) > 3:
                                 # Verificando se contém padrão de código de disciplina (letras + números)
                                 import re
-                                codigos_encontrados = re.findall(r'[A-Z]{3}\d{4}', texto_celula)
-                                requisitos.extend(codigos_encontrados)
+                                # Padrão para códigos com letras + números (ex: SCC0221)
+                                codigos_letras = re.findall(r'[A-Z]{3}\d{4}', texto_celula)
+                                requisitos.extend(codigos_letras)
+                                
+                                # Padrão para códigos com apenas números (ex: 1234567)
+                                # Busca por sequências de exatamente 7 dígitos
+                                codigos_numericos = re.findall(r'\b\d{7}\b', texto_celula)
+                                requisitos.extend(codigos_numericos)
                     
                     # Verificando se chegamos a uma linha de tipo de disciplina (azul)
                     elif "rgb(16, 148, 171)" in style:
