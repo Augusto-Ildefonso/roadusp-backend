@@ -3,3 +3,5 @@ flask-cors
 selenium
 bs4
 gunicorn
+supabase
+dotenv
