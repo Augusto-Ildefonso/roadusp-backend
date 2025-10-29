@@ -1,9 +1,20 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from supabase import create_client
+from dotenv import load_dotenv
 import json
+import os
+
+# Load enviroment variables
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+# Create supabase client
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @app.route("/ping")
 def ping():
@@ -12,14 +23,17 @@ def ping():
 @app.route("/listacursos")
 def lista_cursos():
     try:
-        unidade_http = request.args.get("unidade")
-        file = open("dados.json", 'r', encoding='utf-8')
-        data = json.load(file)
-        file.close()
-        unidade = data[unidade_http]
-        cursos = [curso["nome"] for curso in unidade["cursos"]]
-        if unidade:
-            return jsonify({"cursos": cursos}), 200
+        unidade_escolhida = request.args.get("unidade")
+        print(unidade_escolhida)
+        
+        id_unidade = (supabase.table("unidades").select("id").eq("nome", unidade_escolhida).maybe_single().execute().data)["id"]
+        
+        cursos_db = (supabase.table("cursos").select("nome").eq("id_unidade", id_unidade).execute().data)
+
+        lista_cursos = [curso["nome"] for curso in cursos_db]
+
+        if cursos_db:
+            return jsonify({"cursos": lista_cursos}), 200
         else:
             return jsonify({"error": "não foi encontrado nenhum curso"}), 500
     except Exception as e:
