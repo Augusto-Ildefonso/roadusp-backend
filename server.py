@@ -39,78 +39,105 @@ def lista_cursos():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-def criar_node_link(lista_disciplinas, tipo):
+def criar_node_link(lista_disciplinas):
+    # Construir nodes e links sem consultas N+1:
     nodes = []
     links = []
-    lista_codigos_disciplinas = []
-    group: int
-    
-    match tipo:
-        case "obrigatoria":
-            group = 1
-        case "eletiva":
-            group = 2
-        case "livre":
-            group = 3
-    
+
+    if not lista_disciplinas:
+        return (nodes, links)
+
+    # Mapas auxiliares
+    disciplinas_by_id = {d["id"]: d for d in lista_disciplinas}
+    ids_disciplinas = list(disciplinas_by_id.keys())
+
+    # Buscar todos os requisitos de uma vez (onde id_disciplina está na lista)
+    try:
+        requisitos = supabase.table("requisitos").select("id_disciplina, id_requisito").in_("id_disciplina", ids_disciplinas).execute().data
+    except Exception:
+        # Fallback para evitar quebra caso cliente supabase não suporte in_
+        requisitos = []
+        for d_id in ids_disciplinas:
+            r = supabase.table("requisitos").select("id_disciplina, id_requisito").eq("id_disciplina", d_id).execute().data
+            requisitos.extend(r)
+
+    # Coletar todos os ids de disciplinas que aparecem como requisito (para obter códigos)
+    ids_requisitos_unicos = list({r["id_requisito"] for r in requisitos}) if requisitos else []
+
+    codigo_by_id = {}
+    if ids_requisitos_unicos:
+        # Buscar de uma vez os códigos das disciplinas que são pré-requisitos
+        disciplinas_requisito = supabase.table("disciplinas").select("id, codigo").in_("id", ids_requisitos_unicos).execute().data
+        for d in disciplinas_requisito:
+            codigo_by_id[d["id"]] = d.get("codigo")
+
+    # Construir nodes
     for disciplina in lista_disciplinas:
-        lista_codigos_disciplinas.append(disciplina["codigo"])
+        # Determina o grupo com if/elif para evitar sobrescrita
+        if disciplina.get("obrigatoria"):
+            group = "Obrigatória"
+        elif disciplina.get("eletiva"):
+            group = "Optativa Eletiva"
+        elif disciplina.get("livre"):
+            group = "Optativa Livre"
+        else:
+            group = "Outro"
+
         elemento_node = {
-            "id": disciplina["codigo"],
+            "id": disciplina.get("codigo"),
             "group": group,
-            "nome": disciplina["nome"],
-            "credito_aula": disciplina["credito_aula"],
-            "credito_trabalho": disciplina["credito_trabalho"],
-            "carga_horaria": disciplina["carga_horaria"],
-            "carga_horaria_estagio": disciplina["carga_horaria_estagio"],
-            "carga_horaria_pratica": disciplina["carga_horaria_pratica"],
-            "atividades_teoricos": disciplina["atividades_teo"]
+            "nome": disciplina.get("nome"),
+            "semestre": disciplina.get("semestre"),
+            "credito_aula": disciplina.get("cred_aula"),
+            "credito_trabalho": disciplina.get("cred_trabalho"),
+            "carga_horaria": disciplina.get("ch"),
+            "carga_horaria_estagio": disciplina.get("ce"),
+            "carga_horaria_pratica": disciplina.get("cp"),
+            "atividades_teoricos": disciplina.get("atpa"),
         }
         nodes.append(elemento_node)
-        
-        # Correção: movido o loop de requisitos para dentro do loop de disciplinas
-        for requisito in disciplina["requisitos"]:
-            if requisito in lista_codigos_disciplinas:
-                elemento_link = {
-                    "source": requisito,
-                    "target": disciplina["codigo"],
-                    "value": 3
-                }
-                links.append(elemento_link)
-    
+
+    # Construir links usando os requisitos carregados
+    for r in requisitos:
+        id_disciplina = r.get("id_disciplina")
+        id_requisito = r.get("id_requisito")
+        # Código da disciplina que é requisito (origem)
+        codigo_origem = codigo_by_id.get(id_requisito)
+        # Código da disciplina alvo
+        disciplina_alvo = disciplinas_by_id.get(id_disciplina)
+        codigo_alvo = disciplina_alvo.get("codigo") if disciplina_alvo else None
+
+        if codigo_origem and codigo_alvo:
+            elemento_link = {
+                "source": codigo_origem,
+                "target": codigo_alvo,
+                "value": 3
+            }
+            links.append(elemento_link)
+
     return (nodes, links)
 
 @app.route("/disciplinas")
 def get_disciplinas():
     try:
-        unidade_http = request.args.get("unidade")
-        curso_http = request.args.get("curso")
-        print(f"Unidade a ser buscada: {unidade_http}")
-        print(f"Curso a ser buscado: {curso_http}")
+        req_unidade = request.args.get("unidade")
+        req_curso = request.args.get("curso")
         
-        file = open("dados.json", 'r', encoding='utf-8')
-        data = json.load(file)
-        file.close()
+        # Id da unidade
+        print(f"Unidade a ser buscada: {req_unidade}")
+        id_unidade = (supabase.table("unidades").select("id").eq("nome", req_unidade).maybe_single().execute().data)["id"]
+        print(f"ID_UNIDADE: {id_unidade}")
         
-        nodes = []
-        links = []
-        unidade = data[unidade_http]
-        lista_cursos = unidade["cursos"]
+        # Id do curso
+        print(f"Curso a ser buscado: {req_curso}")
+        id_curso = (supabase.table("cursos").select("id").eq("id_unidade", id_unidade).eq("nome", req_curso).maybe_single().execute().data)["id"]
+        print(f"ID_CURSO: {id_curso}")
+
+        # Lista das disciplinas do curso
+        disciplinas_curso = (supabase.table("disciplinas").select("*").eq("id_curso", id_curso).execute().data)
+        print(f"Disciplinas:\n{disciplinas_curso}")
         
-        for curso in lista_cursos:
-            if curso["nome"] == curso_http:
-                disciplinas_obrigatorias = criar_node_link(curso["disciplinas_obrigatorias"], "obrigatoria")
-                disciplinas_eletivas = criar_node_link(curso["disciplinas_optativas_eletivas"], "eletiva")
-                disciplinas_livres = criar_node_link(curso["disciplinas_optativas_livres"], "livre")
-                
-                nodes.extend(disciplinas_obrigatorias[0])
-                nodes.extend(disciplinas_eletivas[0])
-                nodes.extend(disciplinas_livres[0])
-                
-                links.extend(disciplinas_obrigatorias[1])
-                links.extend(disciplinas_eletivas[1])
-                links.extend(disciplinas_livres[1])
-                break
+        nodes, links = criar_node_link(disciplinas_curso)
         
         return jsonify({"nodes": nodes, "links": links}), 200
     except Exception as e:
