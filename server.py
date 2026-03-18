@@ -1,7 +1,7 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 from src.api.v1.endpoints.cursos import cursos_bp
-from src.api.v1.endpoints.conta import conta_bp
+#from src.api.v1.endpoints.conta import conta_bp
 from src.core.config import settings
 from flask_jwt_extended import JWTManager
 
@@ -13,7 +13,7 @@ def create_app():
     CORS(app)
 
     app.register_blueprint(cursos_bp, url_prefix="/api/v1/cursos")
-    app.register_blueprint(conta_bp, url_prefix="/api/v1/conta")
+    #app.register_blueprint(conta_bp, url_prefix="/api/v1/conta")
 
     @app.route("/ping")
     def ping():
