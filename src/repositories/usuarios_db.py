@@ -12,3 +12,8 @@ def busca_user(email):
     response = supabase.table("usuarios").select("email", "senha", "id").eq("email", email).execute().data[0]
     
     return response
+
+def deletar_user(email):
+    response = supabase.table("usuarios").delete().eq("email", email).execute()
+
+    return response

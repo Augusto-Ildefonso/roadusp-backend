@@ -55,5 +55,14 @@ def login_conta():
 @jwt_required()
 def deletar_conta():
     payload = request.get_json()
+    email = payload.get("email")
+
+    response = usuarios_db.deletar_user(email)
+
+    if response.ok:
+        return({"message": "Usuário deletado com sucesso"}), 200
+    else:
+        return({"error": "Houve um erro ao deletar o usuário", "info": response.error}), 500
+
 
 
