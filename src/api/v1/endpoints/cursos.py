@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 import src.repositories.cursos_db as curso_db
 import src.services.grafos as grafo
 
-cursos_bp = Blueprint("cursos", __name__, url_prefix="/cursos")
+cursos_bp = Blueprint("cursos", __name__)
 
 @cursos_bp.route("/lista")
 def lista_cursos():

@@ -5,3 +5,4 @@ bs4
 gunicorn
 supabase
 dotenv
+flask-jwt-extended
