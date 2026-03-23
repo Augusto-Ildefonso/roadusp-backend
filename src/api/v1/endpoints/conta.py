@@ -94,4 +94,7 @@ def alterar_senha():
             else:
                 return jsonify({"error": "Houve um erro ao alterar a senha", "info": response.error}), 500
 
-
+@conta_bp.route("/upload/historico")
+@jwt_required()
+def upload_historico():
+    
