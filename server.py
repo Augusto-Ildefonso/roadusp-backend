@@ -23,8 +23,6 @@ def create_app():
 
     return app
 
-
-# Expose WSGI application for Gunicorn (`server:app`).
 app = create_app()
 
 
