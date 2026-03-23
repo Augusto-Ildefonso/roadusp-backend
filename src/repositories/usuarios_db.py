@@ -17,3 +17,8 @@ def deletar_user(email):
     response = supabase.table("usuarios").delete().eq("email", email).execute()
 
     return response
+
+def alterar_senha(email, hash):
+    response = supabase.table("usuarios").update({"senha": hash}).eq("email", email).execute()
+    
+    return response
