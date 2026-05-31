@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
 from src.utils.senha_servicos import encriptar, check_senha
-from src.repositories import usuarios_db
+from src.repositories import usuarios_db, processamento_db, preferencias_db, historico_db
+from src.services import processamento
 from postgrest.exceptions import APIError
-from flask_jwt_extended import create_access_token, jwt_required
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
 conta_bp = Blueprint("conta", __name__)
 
@@ -87,14 +88,82 @@ def alterar_senha():
         
         if check_senha(user_db_senha, senha_antiga):
             hash = encriptar(nova_senha)
-            response = usuarios_db.alterar_senha(email, nova_senha)
+            response = usuarios_db.alterar_senha(email, hash)
 
             if response.ok:
                 return jsonify({"message": "Senha alterada com sucesso"}), 200
             else:
                 return jsonify({"error": "Houve um erro ao alterar a senha", "info": response.error}), 500
 
-@conta_bp.route("/upload/historico")
+@conta_bp.route("/upload/historico", methods=["POST"])
 @jwt_required()
 def upload_historico():
-    
+    user_id = get_jwt_identity()
+
+    if "arquivo" not in request.files:
+        return jsonify({"error": "Nenhum arquivo enviado."}), 400
+
+    arquivo = request.files["arquivo"]
+
+    if arquivo.filename == "":
+        return jsonify({"error": "Nenhum arquivo selecionado."}), 400
+
+    arquivo_bytes = arquivo.read()
+    processamento_id = processamento.iniciar_processamento(user_id, arquivo_bytes)
+
+    return jsonify({
+        "processamento_id": processamento_id,
+        "status": "processando",
+    }), 202
+
+
+@conta_bp.route("/processamento/<processamento_id>", methods=["GET"])
+@jwt_required()
+def status_processamento(processamento_id):
+    user_id = get_jwt_identity()
+    dados = processamento_db.buscar(processamento_id)
+
+    if not dados:
+        return jsonify({"error": "Processamento não encontrado."}), 404
+
+    if dados["id_usuario"] != user_id:
+        return jsonify({"error": "Acesso negado."}), 403
+
+    return jsonify({
+        "processamento_id": dados["id"],
+        "status": dados["status"],
+        "resultado": dados.get("resultado"),
+        "erro": dados.get("erro"),
+    }), 200
+
+
+@conta_bp.route("/historico", methods=["GET"])
+@jwt_required()
+def get_historico():
+    user_id = get_jwt_identity()
+    disciplinas = historico_db.buscar_historico(user_id)
+    aprovadas = [d["codigo_disciplina"] for d in disciplinas if d["status"] == "aprovada"]
+    cursando = [d["codigo_disciplina"] for d in disciplinas if d["status"] == "cursando"]
+    return jsonify({"aprovadas": aprovadas, "cursando": cursando}), 200
+
+
+@conta_bp.route("/preferencias", methods=["GET"])
+@jwt_required()
+def get_preferencias():
+    user_id = get_jwt_identity()
+    prefs = preferencias_db.buscar(user_id)
+    if prefs:
+        return jsonify({"unidade": prefs.get("unidade"), "curso": prefs.get("curso")}), 200
+    return jsonify({"unidade": None, "curso": None}), 200
+
+
+@conta_bp.route("/preferencias", methods=["PATCH"])
+@jwt_required()
+def set_preferencias():
+    user_id = get_jwt_identity()
+    payload = request.get_json(silent=True) or {}
+    unidade = payload.get("unidade")
+    curso = payload.get("curso")
+
+    preferencias_db.salvar(user_id, unidade, curso)
+    return jsonify({"message": "Preferências salvas com sucesso"}), 200

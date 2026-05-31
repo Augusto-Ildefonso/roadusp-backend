@@ -3,3 +3,5 @@ __pycache__
 .env
 Makefile
 *.DS_Store
+opencode
+example_historico.pdf
