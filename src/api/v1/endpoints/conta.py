@@ -1,9 +1,13 @@
+from datetime import timedelta
+
 from flask import Blueprint, request, jsonify
 from src.utils.senha_servicos import encriptar, check_senha
 from src.repositories import usuarios_db, processamento_db, preferencias_db, historico_db
 from src.services import processamento
+from src.services.email_service import enviar_email_redefinicao
+from src.core.config import settings
 from postgrest.exceptions import APIError
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, decode_token
 
 conta_bp = Blueprint("conta", __name__)
 
@@ -29,7 +33,7 @@ def criar_conta():
     
     print(response.data)
     
-    if not response:
+    if not response.data:
         return jsonify({"message": "Erro ao criar conta"}), 400
 
     return jsonify({"message": "Conta criada com sucesso"}), 201
@@ -52,6 +56,58 @@ def login_conta():
     else:
         return jsonify({"error": "O email ou senha estão incorretors"}), 400
 
+@conta_bp.route("/esqueci-senha", methods=["POST"])
+def esqueci_senha():
+    payload = request.get_json(silent=True) or {}
+    email = payload.get("email")
+
+    if not email:
+        return jsonify({"message": "Email não recebido"}), 400
+
+    try:
+        usuarios_db.busca_user(email)
+    except (IndexError, APIError):
+        return jsonify({"message": "Se o email existir, você receberá um link de redefinição"}), 200
+
+    token = create_access_token(
+        identity=email,
+        expires_delta=timedelta(minutes=settings.RESET_TOKEN_EXPIRES)
+    )
+
+    try:
+        enviar_email_redefinicao(email, token)
+    except Exception as e:
+        print(e)
+        return jsonify({"error": "Erro ao enviar email"}), 500
+
+    return jsonify({"message": "Se o email existir, você receberá um link de redefinição"}), 200
+
+
+@conta_bp.route("/redefinir-senha", methods=["POST"])
+def redefinir_senha():
+    payload = request.get_json(silent=True) or {}
+    token = payload.get("token")
+    nova_senha = payload.get("nova_senha")
+
+    if not token or not nova_senha:
+        return jsonify({"message": "Token e nova senha são obrigatórios"}), 400
+
+    try:
+        decoded = decode_token(token)
+        email = decoded["sub"]
+    except Exception as e:
+        print(e)
+        return jsonify({"error": "Token inválido ou expirado"}), 400
+
+    hash = encriptar(nova_senha)
+    response = usuarios_db.alterar_senha(email, hash)
+
+    if response.data:
+        return jsonify({"message": "Senha redefinida com sucesso"}), 200
+    else:
+        return jsonify({"error": "Erro ao redefinir senha"}), 500
+
+
 @conta_bp.route("/deletar", methods=["DELETE"])
 @jwt_required()
 def deletar_conta():
@@ -64,10 +120,10 @@ def deletar_conta():
     response = usuarios_db.deletar_user(email)
 
 
-    if response.ok:
+    if response.data:
         return({"message": "Usuário deletado com sucesso"}), 200
     else:
-        return({"error": "Houve um erro ao deletar o usuário", "info": response.error}), 500
+        return({"error": "Houve um erro ao deletar o usuário"}), 500
 
 @conta_bp.route("/alterar", methods=["PUT"])
 @jwt_required()
@@ -91,10 +147,10 @@ def alterar_senha():
         hash = encriptar(nova_senha)
         response = usuarios_db.alterar_senha(email, hash)
 
-        if response.ok:
-            return jsonify({"message": "Senha alterada com sucesso"}), 200
-        else:
-            return jsonify({"error": "Houve um erro ao alterar a senha", "info": response.error}), 500
+    if response.data:
+        return jsonify({"message": "Senha alterada com sucesso"}), 200
+    else:
+        return jsonify({"error": "Houve um erro ao alterar a senha"}), 500
 
     return jsonify({"error": "Senha antiga incorreta"}), 400
 
