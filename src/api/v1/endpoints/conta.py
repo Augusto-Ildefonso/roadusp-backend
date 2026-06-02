@@ -69,7 +69,7 @@ def deletar_conta():
     else:
         return({"error": "Houve um erro ao deletar o usuário", "info": response.error}), 500
 
-@conta_bp.route("/alterar", methods=["UPDATE"])
+@conta_bp.route("/alterar", methods=["PUT"])
 @jwt_required()
 def alterar_senha():
     payload = request.get_json()
@@ -80,20 +80,23 @@ def alterar_senha():
     if not email or not senha_antiga or not nova_senha:
         return jsonify({"message": "Erro: email ou senha não foram recebidos"}), 400
 
-    user_db_response = usuarios_db.busca_user(email)
+    try:
+        user_db = usuarios_db.busca_user(email)
+    except (IndexError, APIError):
+        return jsonify({"error": "Usuário não encontrado"}), 404
 
-    if user_db_response.ok:
-        user_db_senha = user_db_response["senha"]
-        user_db_id = user_db_response["id"]
-        
-        if check_senha(user_db_senha, senha_antiga):
-            hash = encriptar(nova_senha)
-            response = usuarios_db.alterar_senha(email, hash)
+    user_db_senha = user_db["senha"]
 
-            if response.ok:
-                return jsonify({"message": "Senha alterada com sucesso"}), 200
-            else:
-                return jsonify({"error": "Houve um erro ao alterar a senha", "info": response.error}), 500
+    if check_senha(user_db_senha, senha_antiga):
+        hash = encriptar(nova_senha)
+        response = usuarios_db.alterar_senha(email, hash)
+
+        if response.ok:
+            return jsonify({"message": "Senha alterada com sucesso"}), 200
+        else:
+            return jsonify({"error": "Houve um erro ao alterar a senha", "info": response.error}), 500
+
+    return jsonify({"error": "Senha antiga incorreta"}), 400
 
 @conta_bp.route("/upload/historico", methods=["POST"])
 @jwt_required()
