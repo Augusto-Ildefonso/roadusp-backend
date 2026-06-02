@@ -147,10 +147,10 @@ def alterar_senha():
         hash = encriptar(nova_senha)
         response = usuarios_db.alterar_senha(email, hash)
 
-    if response.data:
-        return jsonify({"message": "Senha alterada com sucesso"}), 200
-    else:
-        return jsonify({"error": "Houve um erro ao alterar a senha"}), 500
+        if response.data:
+            return jsonify({"message": "Senha alterada com sucesso"}), 200
+        else:
+            return jsonify({"error": "Houve um erro ao alterar a senha"}), 500
 
     return jsonify({"error": "Senha antiga incorreta"}), 400
 
