@@ -1,23 +1,28 @@
-import os
 import smtplib
+import socket
 from email.mime.text import MIMEText
+from src.core.config import settings
+
+SMTP_TIMEOUT = 10
 
 def enviar_email_redefinicao(email_destino: str, token: str):
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-    link = f"{frontend_url}/redefinir-senha?token={token}"
+    link = f"{settings.FRONTEND_URL}/redefinir-senha?token={token}"
 
     corpo = f"""
     <p>Clique no link abaixo para redefinir sua senha:</p>
     <a href="{link}">{link}</a>
-    <p>O link expira em 15 minutos.</p>
+    <p>O link expira em {settings.RESET_TOKEN_EXPIRES} minutos.</p>
     """
 
     msg = MIMEText(corpo, "html")
     msg["Subject"] = "Redefinição de senha - RoadUSP"
-    msg["From"] = os.getenv("EMAIL_REMETENTE")
+    msg["From"] = settings.EMAIL_REMETENTE
     msg["To"] = email_destino
 
-    with smtplib.SMTP(os.getenv("SMTP_HOST"), int(os.getenv("SMTP_PORT", "587"))) as server:
-        server.starttls()
-        server.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASS"))
-        server.send_message(msg)
+    try:
+        with smtplib.SMTP(settings.SMTP_HOST, int(settings.SMTP_PORT), timeout=SMTP_TIMEOUT) as server:
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASS)
+            server.send_message(msg)
+    except (socket.timeout, socket.gaierror, ConnectionRefusedError, smtplib.SMTPException) as e:
+        raise RuntimeError(f"Falha ao enviar email: {e}") from e

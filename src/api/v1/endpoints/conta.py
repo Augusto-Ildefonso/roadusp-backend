@@ -1,3 +1,4 @@
+import threading
 from datetime import timedelta
 
 from flask import Blueprint, request, jsonify
@@ -74,11 +75,11 @@ def esqueci_senha():
         expires_delta=timedelta(minutes=settings.RESET_TOKEN_EXPIRES)
     )
 
-    try:
-        enviar_email_redefinicao(email, token)
-    except Exception as e:
-        print(e)
-        return jsonify({"error": "Erro ao enviar email"}), 500
+    threading.Thread(
+        target=enviar_email_redefinicao,
+        args=(email, token),
+        daemon=True,
+    ).start()
 
     return jsonify({"message": "Se o email existir, você receberá um link de redefinição"}), 200
 
