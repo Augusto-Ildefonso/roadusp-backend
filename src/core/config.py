@@ -13,6 +13,7 @@ class Settings:
     SMTP_USER = os.getenv("SMTP_USER")
     SMTP_PASS = os.getenv("SMTP_PASS")
     EMAIL_REMETENTE = os.getenv("EMAIL_REMETENTE")
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY")
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
     RESET_TOKEN_EXPIRES = int(os.getenv("RESET_TOKEN_EXPIRES", "30"))
 
