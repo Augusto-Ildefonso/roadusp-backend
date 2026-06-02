@@ -112,19 +112,23 @@ def redefinir_senha():
 @conta_bp.route("/deletar", methods=["DELETE"])
 @jwt_required()
 def deletar_conta():
-    payload = request.get_json()
+    user_id = get_jwt_identity()
+    payload = request.get_json(silent=True) or {}
     email = payload.get("email")
 
     if not email:
-        return jsonify({"message": "Erro: email ou senha não foram recebidos"}), 400
+        return jsonify({"error": "Email não recebido"}), 400
+
+    user_db = usuarios_db.busca_user_id(user_id)
+    if not user_db or user_db["email"] != email:
+        return jsonify({"error": "Acesso negado"}), 403
 
     response = usuarios_db.deletar_user(email)
 
-
     if response.data:
-        return({"message": "Usuário deletado com sucesso"}), 200
+        return jsonify({"message": "Usuário deletado com sucesso"}), 200
     else:
-        return({"error": "Houve um erro ao deletar o usuário"}), 500
+        return jsonify({"error": "Houve um erro ao deletar o usuário"}), 500
 
 @conta_bp.route("/alterar", methods=["PUT"])
 @jwt_required()
