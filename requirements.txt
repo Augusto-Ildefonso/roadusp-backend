@@ -7,3 +7,4 @@ supabase
 dotenv
 flask-jwt-extended
 pdfplumber==0.11.9
+resend
